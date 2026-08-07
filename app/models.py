@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from hashlib import md5
 from typing import override
 
 import sqlalchemy as sa
@@ -14,18 +15,26 @@ class User(db.Model, UserMixin):
     username: so.Mapped[str] = so.mapped_column(sa.String(64), index=True, unique=True)
     email: so.Mapped[str] = so.mapped_column(sa.String(120), index=True, unique=True)
     password_hash: so.Mapped[str | None] = so.mapped_column(sa.String(256))
+    about_me: so.Mapped[str | None] = so.mapped_column(sa.String(300))
+    last_seen: so.Mapped[datetime | None] = so.mapped_column(
+        default=lambda: datetime.now(timezone.utc)
+    )
 
     posts: so.WriteOnlyMapped["Post"] = so.relationship(back_populates="author")
-
-    @login.user_loader
-    def load_user(id) -> User | None:
-        return db.session.get(User, int(id))
 
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)
+
+    def avatar(self, size) -> str:
+        digest: str = md5(self.email.lower().encode("utf-8")).hexdigest()
+        return f"https://www.gravatar.com/avatar/{digest}?d=identicon&s={size}"
+
+    @login.user_loader
+    def load_user(id) -> User | None:
+        return db.session.get(User, int(id))
 
     @override
     def __repr__(self) -> str:
